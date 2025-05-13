@@ -7,7 +7,7 @@ public enum CapeType {
     MINECON_2015("Minecon2015", "2015", 4, "http://textures.minecraft.net/texture/b0cc08840700447322d953a02b965f1d65a13a603bf64b17c803c21446fe1635"),
     MINECON_2016("Minecon2016", "2016", 3, "http://textures.minecraft.net/texture/e7dfea16dc83c97df01a12fabbd1216359c0cd0ea42f9999b6e97c584963e980"),
     REALMS("MapMaker", "realms", 8, "http://textures.minecraft.net/texture/17912790ff164b93196f08ba71d0e62129304776d0f347334f8a6eae509f8a56"),
-    MIGRATOR("Migrator", "migrator", 1, "http://textures.minecraft.net/texture/2340c0e03dd24a11b15a8b33c2a7e9e32abb2051b2481d0ba7defd635ca7a933"),
+    MIGRATOR("Migrator", "migrator_cape", 1, "http://textures.minecraft.net/texture/2340c0e03dd24a11b15a8b33c2a7e9e32abb2051b2481d0ba7defd635ca7a933"),
     VANILLA("Vanilla", "vanilla", 1, "http://textures.minecraft.net/texture/f9a76537647989f9a0b6d001e320dac591c359e9e61a31f4ce11c88f207f0ad4"),
     CHERRY("Cherry Blossom", "cherry", 1, "http://textures.minecraft.net/texture/afd553b39358a24edfe3b8a9a939fa5fa4faa4d9a9c3d6af8eafb377fa05c2bb"),
     ANNIVERSARY("15th Anniversary", "15A", 1, "http://textures.minecraft.net/texture/cd9d82ab17fd92022dbd4a86cde4c382a7540e117fae7b9a2853658505a80625"),

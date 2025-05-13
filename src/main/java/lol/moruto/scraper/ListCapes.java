@@ -10,21 +10,22 @@ import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.*;
+import java.util.stream.Collectors;
 
 public class ListCapes {
-    private TextArea consoleArea; // TextArea for logging
+    private final TextArea consoleArea;
 
     public ListCapes(Set<CapeType> desiredCapes, Set<CapeType> noCapes, TextArea consoleArea) {
         this.consoleArea = consoleArea;
-        String baseUrl = "https://capes.me";
+        String baseUrl = "https://capes.me/capes";
 
-        StringBuilder capeCodes = new StringBuilder();
-        for (CapeType cape : desiredCapes) {
-            if (capeCodes.length() > 0) capeCodes.append(",");
-            capeCodes.append(cape.getCode());
+        Map<String, String> queryParams = new LinkedHashMap<>();
+        queryParams.put("capes", desiredCapes.stream().map(CapeType::getCode).collect(Collectors.joining(",")));
+        if (!noCapes.isEmpty()) {
+            queryParams.put("filter_capes", noCapes.stream().map(CapeType::getCode).collect(Collectors.joining(",")));
         }
 
-        String currentUrl = baseUrl + "/capes?capes=" + capeCodes;
+        String currentUrl = baseUrl + "?" + toQueryString(queryParams);
 
         logToConsole("Starting URL: " + currentUrl);
         Set<String> loggedIGNs = new HashSet<>();
@@ -34,11 +35,7 @@ public class ListCapes {
                 int newPlayersThisPage = 0;
 
                 try {
-                    Document doc = Jsoup.connect(currentUrl)
-                            .userAgent("Mozilla/5.0")
-                            .timeout(10000)
-                            .get();
-
+                    Document doc = Jsoup.connect(currentUrl).userAgent("Mozilla/5.0").timeout(10000).get();
                     Elements users = doc.select("div.full-user");
 
                     if (users.isEmpty()) logToConsole("No users found on this page.");
@@ -50,27 +47,13 @@ public class ListCapes {
                         Elements capes = user.select("div.cape-div");
 
                         List<String> allCapeNames = new ArrayList<>();
-                        boolean hasDesiredCape = false;
-                        boolean hasExcludedCape = false;
-
                         for (Element cape : capes) {
                             String capeName = cape.select("p").text().trim();
                             allCapeNames.add(capeName);
-
-                            for (CapeType desiredCape : desiredCapes) {
-                                if (capeName.equalsIgnoreCase(desiredCape.getName())) {
-                                    hasDesiredCape = true;
-                                    break;
-                                }
-                            }
-
-                            for (CapeType excludedCape : noCapes) {
-                                if (capeName.equalsIgnoreCase(excludedCape.getName())) {
-                                    hasExcludedCape = true;
-                                    break;
-                                }
-                            }
                         }
+
+                        boolean hasDesiredCape = allCapeNames.stream().anyMatch(name -> desiredCapes.stream().anyMatch(c -> c.getName().equalsIgnoreCase(name)));
+                        boolean hasExcludedCape = allCapeNames.stream().anyMatch(name -> noCapes.stream().anyMatch(c -> c.getName().equalsIgnoreCase(name)));
 
                         if (hasDesiredCape && !hasExcludedCape) {
                             writer.write(ign + " - Capes: " + String.join(", ", allCapeNames));
@@ -88,14 +71,16 @@ public class ListCapes {
                     Element nextPage = doc.selectFirst("a.pageNext[href]");
                     if (nextPage != null) {
                         String href = nextPage.attr("href").trim();
-                        currentUrl = href.startsWith("http") ? href : baseUrl + href;
-                        logToConsole("Moving to next page: " + currentUrl);
-                    } else {
-                        currentUrl = null;
-                    }
+                        String pageParam = extractPageParam(href);
+                        if (pageParam != null) {
+                            queryParams.put("page", pageParam);
+                            currentUrl = baseUrl + "?" + toQueryString(queryParams);
+                        } else currentUrl = null;
 
-                    // Adding sleep to avoid hitting the server too hard
-                    Thread.sleep(1000);
+                        logToConsole("Moving to next page: " + currentUrl);
+                    } else currentUrl = null;
+
+                    Thread.sleep(500);
                 } catch (Exception e) {
                     logToConsole("Error during scraping: " + e.getMessage());
                     e.printStackTrace();
@@ -109,10 +94,28 @@ public class ListCapes {
         }
     }
 
+    private String toQueryString(Map<String, String> params) {
+        return params.entrySet().stream()
+                .map(e -> e.getKey() + "=" + e.getValue())
+                .collect(Collectors.joining("&"));
+    }
+
+    private String extractPageParam(String href) {
+        if (href.contains("page=")) {
+            String[] parts = href.split("[?&]");
+            for (String part : parts) {
+                if (part.startsWith("page=")) {
+                    return part.substring("page=".length());
+                }
+            }
+        }
+        return null;
+    }
+
     private void logToConsole(String message) {
         javafx.application.Platform.runLater(() -> {
             consoleArea.appendText(message + "\n");
-            consoleArea.setScrollTop(Double.MAX_VALUE); // Auto scroll to the bottom
+            consoleArea.setScrollTop(Double.MAX_VALUE);
         });
     }
 }
