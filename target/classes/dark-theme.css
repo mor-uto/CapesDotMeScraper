@@ -1,0 +1,53 @@
+/* Dark Theme Styling */
+
+.root {
+    -fx-base: #212121;
+    -fx-background: #181818;
+    -fx-text-fill: #e0e0e0;
+    -fx-font-family: 'Arial';
+}
+
+.button {
+    -fx-background-color: #3f3f3f;
+    -fx-text-fill: #e0e0e0;
+    -fx-border-radius: 8px;
+    -fx-padding: 10px 15px;
+}
+
+.button:hover {
+    -fx-background-color: #5a5a5a;
+}
+
+.label {
+    -fx-text-fill: #e0e0e0;
+    -fx-font-size: 14px;
+}
+
+.text-area {
+    -fx-background-color: #2e2e2e;
+    -fx-text-fill: #e0e0e0;
+    -fx-font-family: 'Consolas';
+}
+
+.toggle-button {
+    -fx-base: #5a5a5a;
+    -fx-text-fill: white;
+}
+
+.section {
+    -fx-background-color: #333333;
+    -fx-border-radius: 8px;
+    -fx-padding: 15px;
+}
+
+.section-blue {
+    -fx-background-color: #2196F3;
+}
+
+.section-red {
+    -fx-background-color: #F44336;
+}
+
+.grid-pane {
+    -fx-background-color: #212121;
+}
