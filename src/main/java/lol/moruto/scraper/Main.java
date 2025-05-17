@@ -12,7 +12,6 @@ public class Main {
 
     private final DefaultListModel<CapeType> desiredModel = new DefaultListModel<>();
     private final DefaultListModel<CapeType> blockedModel = new DefaultListModel<>();
-    private final Set<CapeType> autoFilteredCapes = EnumSet.noneOf(CapeType.class);
 
     private boolean isDarkMode = true;
 
@@ -126,12 +125,10 @@ public class Main {
 
     private void updateAutoFilteredCapes() {
         blockedModel.removeAllElements();
-        autoFilteredCapes.clear();
         List<CapeType> desired = Collections.list(desiredModel.elements());
         for (CapeType cape : CapeType.values()) {
             if (!desired.contains(cape)) {
                 blockedModel.addElement(cape);
-                autoFilteredCapes.add(cape);
             }
         }
     }
