@@ -1,154 +1,164 @@
 package lol.moruto.scraper;
 
-import javafx.application.Application;
-import javafx.collections.*;
-import javafx.geometry.*;
-import javafx.scene.Scene;
-import javafx.scene.control.*;
-import javafx.scene.layout.*;
-import javafx.stage.Stage;
+import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
 
-import java.util.EnumSet;
-import java.util.Set;
+import javax.swing.*;
+import java.awt.*;
+import java.util.*;
+import java.util.List;
 
-public class Main extends Application {
+public class Main {
 
-    private final ObservableList<CapeType> desiredCapes = FXCollections.observableArrayList();
-    private final ObservableList<CapeType> blockedCapes = FXCollections.observableArrayList();
-    private final ObservableList<CapeType> autoFilteredCapes = FXCollections.observableArrayList();
+    private final DefaultListModel<CapeType> desiredModel = new DefaultListModel<>();
+    private final DefaultListModel<CapeType> blockedModel = new DefaultListModel<>();
+    private final Set<CapeType> autoFilteredCapes = EnumSet.noneOf(CapeType.class);
 
-    private TextArea consoleArea;
     private boolean isDarkMode = true;
 
-    @Override
-    public void start(Stage stage) {
-        stage.setTitle("capes.me Scraper");
+    public Main() {
+        JFrame frame = new JFrame("capes.me Scraper");
+        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        frame.setSize(1000, 700);
+        frame.setLocationRelativeTo(null);
 
-        ComboBox<CapeType> capeSelector = new ComboBox<>(FXCollections.observableArrayList(CapeType.values()));
-        capeSelector.setPromptText("Select a Cape");
+        JComboBox<CapeType> capeSelector = new JComboBox<>(CapeType.values());
+        JButton addToDesired = new JButton("➕ Desired");
+        JButton addToBlocked = new JButton("➖ Block");
+        JCheckBox filterOutRest = new JCheckBox("Filter Out All Other Capes");
 
-        Button addToDesired = new Button("Add to Desired");
-        Button addToBlocked = new Button("Add to Filter Out");
+        JList<CapeType> desiredList = new JList<>(desiredModel);
+        JList<CapeType> blockedList = new JList<>(blockedModel);
 
-        ListView<CapeType> desiredList = new ListView<>(desiredCapes);
-        ListView<CapeType> blockedList = new ListView<>(blockedCapes);
+        JScrollPane desiredScroll = new JScrollPane(desiredList);
+        desiredScroll.setPreferredSize(new Dimension(250, 300));
 
-        Label desiredLabel = new Label("✅ Desired Capes");
-        Label blockedLabel = new Label("🚫 Filtered Out Capes");
+        JScrollPane blockedScroll = new JScrollPane(blockedList);
+        blockedScroll.setPreferredSize(new Dimension(250, 300));
 
-        desiredList.setPlaceholder(new Label("No desired capes"));
-        blockedList.setPlaceholder(new Label("No filtered out capes"));
-
-        CheckBox filterOutRestCheckbox = new CheckBox("Filter Out All Other Capes");
-        filterOutRestCheckbox.setOnAction(e -> updateAutoFilteredCapes());
-        desiredCapes.addListener((ListChangeListener<CapeType>) c -> {
-            if (filterOutRestCheckbox.isSelected()) updateAutoFilteredCapes();
-        });
-
-        consoleArea = new TextArea();
+        JTextArea consoleArea = new JTextArea();
         consoleArea.setEditable(false);
-        consoleArea.setWrapText(true);
-        consoleArea.setPrefHeight(300);
-        consoleArea.setStyle("-fx-font-family: 'Consolas';");
+        consoleArea.setFont(new Font("Consolas", Font.PLAIN, 13));
+        JScrollPane consoleScroll = new JScrollPane(consoleArea);
+        consoleScroll.setPreferredSize(new Dimension(950, 200));
 
-        addToDesired.setOnAction(e -> {
-            CapeType selected = capeSelector.getValue();
-            if (selected != null && !desiredCapes.contains(selected) && !blockedCapes.contains(selected)) {
-                desiredCapes.add(selected);
+        addToDesired.addActionListener(e -> {
+            CapeType selected = (CapeType) capeSelector.getSelectedItem();
+            if (selected != null && !contains(desiredModel, selected) && !contains(blockedModel, selected)) {
+                desiredModel.addElement(selected);
+                if (filterOutRest.isSelected()) updateAutoFilteredCapes();
             }
             updateButtons(capeSelector, addToDesired, addToBlocked);
         });
 
-        addToBlocked.setOnAction(e -> {
-            CapeType selected = capeSelector.getValue();
-            if (selected != null && !blockedCapes.contains(selected) && !desiredCapes.contains(selected)) {
-                blockedCapes.add(selected);
+        addToBlocked.addActionListener(e -> {
+            CapeType selected = (CapeType) capeSelector.getSelectedItem();
+            if (selected != null && !contains(blockedModel, selected) && !contains(desiredModel, selected)) {
+                blockedModel.addElement(selected);
+                if (filterOutRest.isSelected()) updateAutoFilteredCapes();
             }
             updateButtons(capeSelector, addToDesired, addToBlocked);
         });
 
-        capeSelector.setOnAction(e -> updateButtons(capeSelector, addToDesired, addToBlocked));
+        filterOutRest.addActionListener(e -> updateAutoFilteredCapes());
+        capeSelector.addActionListener(e -> updateButtons(capeSelector, addToDesired, addToBlocked));
 
-        Button startButton = new Button("🚀 Start Scraping");
-        startButton.setOnAction(e -> {
-            if (desiredCapes.isEmpty()) {
-                showAlert(Alert.AlertType.WARNING, "Please select at least one desired cape.");
+        JButton startButton = new JButton("🚀 Start Scraping");
+        startButton.addActionListener(e -> {
+            if (desiredModel.isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "Please select at least one desired cape.", "Warning", JOptionPane.WARNING_MESSAGE);
                 return;
             }
-
-            Set<CapeType> desiredSet = EnumSet.copyOf(desiredCapes);
-            Set<CapeType> blockedSet = blockedCapes.isEmpty() ? EnumSet.noneOf(CapeType.class) : EnumSet.copyOf(blockedCapes);
-
+            Set<CapeType> desiredSet = toSet(desiredModel);
+            Set<CapeType> blockedSet = blockedModel.isEmpty() ? EnumSet.noneOf(CapeType.class) : toSet(blockedModel);
             new Thread(() -> new ListCapes(desiredSet, blockedSet, consoleArea)).start();
         });
 
-        ToggleButton themeToggleButton = new ToggleButton("🌙 Light/Dark Mode");
-        themeToggleButton.setOnAction(e -> {
+        JToggleButton themeToggle = new JToggleButton("🌓 Theme");
+        themeToggle.addActionListener(e -> {
             isDarkMode = !isDarkMode;
-            if (isDarkMode) {
-                stage.getScene().getStylesheets().clear();
-                stage.getScene().getStylesheets().add("dark-theme.css");
-            } else {
-                stage.getScene().getStylesheets().clear();
-                stage.getScene().getStylesheets().add("light-theme.css");
+            try {
+                if (isDarkMode) FlatDarkLaf.setup();
+                else FlatLightLaf.setup();
+                SwingUtilities.updateComponentTreeUI(frame);
+            } catch (Exception ex) {
+                ex.printStackTrace();
             }
         });
 
-        GridPane grid = new GridPane();
-        grid.setHgap(20);
-        grid.setVgap(15);
-        grid.setPadding(new Insets(15));
+        JPanel selectorPanel = new JPanel();
+        selectorPanel.setLayout(new BoxLayout(selectorPanel, BoxLayout.Y_AXIS));
+        selectorPanel.setBorder(BorderFactory.createTitledBorder("Cape Selection"));
+        selectorPanel.add(capeSelector);
+        selectorPanel.add(Box.createVerticalStrut(5));
+        selectorPanel.add(addToDesired);
+        selectorPanel.add(Box.createVerticalStrut(5));
+        selectorPanel.add(addToBlocked);
+        selectorPanel.add(Box.createVerticalStrut(10));
+        selectorPanel.add(filterOutRest);
 
-        VBox selectBox = new VBox(10, capeSelector, addToDesired, addToBlocked, filterOutRestCheckbox);
-        VBox desiredBox = new VBox(10, desiredLabel, desiredList);
-        VBox blockedBox = new VBox(10, blockedLabel, blockedList);
+        JPanel desiredPanel = new JPanel(new BorderLayout());
+        desiredPanel.setBorder(BorderFactory.createTitledBorder("✅ Desired Capes"));
+        desiredPanel.add(desiredScroll, BorderLayout.CENTER);
 
-        selectBox.getStyleClass().add("section");
-        desiredBox.getStyleClass().add("section-blue");
-        blockedBox.getStyleClass().add("section-red");
+        JPanel blockedPanel = new JPanel(new BorderLayout());
+        blockedPanel.setBorder(BorderFactory.createTitledBorder("❌ Blocked Capes"));
+        blockedPanel.add(blockedScroll, BorderLayout.CENTER);
 
-        grid.add(selectBox, 0, 0);
-        grid.add(desiredBox, 1, 0);
-        grid.add(blockedBox, 2, 0);
-        grid.add(startButton, 0, 1);
-        grid.add(consoleArea, 0, 2, 3, 1);
-        grid.add(themeToggleButton, 2, 1);
+        JPanel listPanel = new JPanel(new GridLayout(1, 3, 10, 10));
+        listPanel.add(selectorPanel);
+        listPanel.add(desiredPanel);
+        listPanel.add(blockedPanel);
 
-        Scene scene = new Scene(grid, 800, 600);
-        scene.getStylesheets().add("dark-theme.css");
-        stage.setScene(scene);
-        stage.show();
+        JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        controlPanel.add(startButton);
+        controlPanel.add(themeToggle);
+
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+        mainPanel.add(listPanel, BorderLayout.CENTER);
+        mainPanel.add(controlPanel, BorderLayout.NORTH);
+        mainPanel.add(consoleScroll, BorderLayout.SOUTH);
+
+        frame.setContentPane(mainPanel);
+        frame.setVisible(true);
     }
 
     private void updateAutoFilteredCapes() {
-        blockedCapes.removeAll(autoFilteredCapes);
+        blockedModel.removeAllElements();
         autoFilteredCapes.clear();
-
-        if (!desiredCapes.isEmpty()) {
-            for (CapeType cape : CapeType.values()) {
-                if (!desiredCapes.contains(cape) && !blockedCapes.contains(cape)) {
-                    blockedCapes.add(cape);
-                    autoFilteredCapes.add(cape);
-                }
+        List<CapeType> desired = Collections.list(desiredModel.elements());
+        for (CapeType cape : CapeType.values()) {
+            if (!desired.contains(cape)) {
+                blockedModel.addElement(cape);
+                autoFilteredCapes.add(cape);
             }
         }
     }
 
-    private void updateButtons(ComboBox<CapeType> capeSelector, Button addToDesired, Button addToBlocked) {
-        CapeType selected = capeSelector.getValue();
+    private void updateButtons(JComboBox<CapeType> selector, JButton addToDesired, JButton addToBlocked) {
+        CapeType selected = (CapeType) selector.getSelectedItem();
         if (selected == null) return;
-
-        addToDesired.setDisable(desiredCapes.contains(selected) || blockedCapes.contains(selected));
-        addToBlocked.setDisable(blockedCapes.contains(selected) || desiredCapes.contains(selected));
+        boolean inDesired = contains(desiredModel, selected);
+        boolean inBlocked = contains(blockedModel, selected);
+        addToDesired.setEnabled(!inDesired && !inBlocked);
+        addToBlocked.setEnabled(!inBlocked && !inDesired);
     }
 
-    private void showAlert(Alert.AlertType type, String message) {
-        Alert alert = new Alert(type, message, ButtonType.OK);
-        alert.setHeaderText(null);
-        alert.showAndWait();
+    private boolean contains(DefaultListModel<CapeType> model, CapeType cape) {
+        return Collections.list(model.elements()).contains(cape);
+    }
+
+    private Set<CapeType> toSet(DefaultListModel<CapeType> model) {
+        return EnumSet.copyOf(Collections.list(model.elements()));
     }
 
     public static void main(String[] args) {
-        launch(args);
+        try {
+            FlatDarkLaf.setup();
+        } catch (Exception ex) {
+            System.err.println("Failed to initialize FlatLaf");
+        }
+        SwingUtilities.invokeLater(Main::new);
     }
 }

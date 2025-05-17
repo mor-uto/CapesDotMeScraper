@@ -1,11 +1,11 @@
 package lol.moruto.scraper;
 
-import javafx.scene.control.TextArea;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
+import javax.swing.*;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
@@ -13,9 +13,9 @@ import java.util.*;
 import java.util.stream.Collectors;
 
 public class ListCapes {
-    private final TextArea consoleArea;
+    private final JTextArea consoleArea;
 
-    public ListCapes(Set<CapeType> desiredCapes, Set<CapeType> noCapes, TextArea consoleArea) {
+    public ListCapes(Set<CapeType> desiredCapes, Set<CapeType> noCapes, JTextArea consoleArea) {
         this.consoleArea = consoleArea;
         String baseUrl = "https://capes.me/capes";
 
@@ -113,9 +113,9 @@ public class ListCapes {
     }
 
     private void logToConsole(String message) {
-        javafx.application.Platform.runLater(() -> {
-            consoleArea.appendText(message + "\n");
-            consoleArea.setScrollTop(Double.MAX_VALUE);
+        SwingUtilities.invokeLater(() -> {
+            consoleArea.append(message + "\n");
+            consoleArea.setCaretPosition(consoleArea.getDocument().getLength());
         });
     }
 }
