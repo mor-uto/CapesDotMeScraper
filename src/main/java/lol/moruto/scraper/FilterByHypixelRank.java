@@ -4,43 +4,39 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.select.Elements;
 
-import javax.swing.*;
 import java.io.IOException;
 import java.util.List;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class FilterByHypixelRank {
-    private final JTextArea consoleArea;
-    private ExecutorService executorService;
-
-    public FilterByHypixelRank(JTextArea consoleArea) {
-        this.consoleArea = consoleArea;
-    }
+    private final List<String> filteredIGNs = Collections.synchronizedList(new ArrayList<>());
 
     public void startFiltering(List<String> ignList, String desiredRank) {
-        int threads = Math.min(ignList.size(), 10); // Use up to 10 threads for parallel scraping
-        executorService = Executors.newFixedThreadPool(threads);
+        int threads = Math.min(ignList.size(), 10);
+        ExecutorService executorService = Executors.newFixedThreadPool(threads);
 
-        log("Filtering players with rank: " + desiredRank + " using " + threads + " threads.");
+        Main.log("Filtering players with rank: " + desiredRank + " using " + threads + " threads.");
 
         for (String ign : ignList) {
             executorService.submit(() -> filterIGN(ign, desiredRank));
         }
 
-        // Shut down executor and wait for all tasks to complete
-        new Thread(() -> {
-            executorService.shutdown();
-            try {
-                if (!executorService.awaitTermination(5, TimeUnit.MINUTES)) {
-                    log("Timeout reached, forcing shutdown.");
-                    executorService.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log("Shutdown interrupted: " + e.getMessage());
+        executorService.shutdown();
+        try {
+            if (!executorService.awaitTermination(5, TimeUnit.MINUTES)) {
+                Main.log("Timeout reached, forcing shutdown.");
+                executorService.shutdownNow();
             }
-            log("Finished filtering.");
-        }).start();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            Main.log("Shutdown interrupted: " + e.getMessage());
+        }
+
+        Main.log("Finished filtering.");
     }
 
     private void filterIGN(String ign, String desiredRank) {
@@ -57,35 +53,16 @@ public class FilterByHypixelRank {
                 rank = rankElements.first().text().trim();
             }
 
-            final String logMessage = (rank.equalsIgnoreCase(desiredRank)
-                    ? "✔ " + ign + " has rank " + rank
-                    : "✘ " + ign + " has rank " + rank);
-            log(logMessage);
+            if (rank.equalsIgnoreCase(desiredRank)) {
+                filteredIGNs.add(ign);
+                Main.log("✔ " + ign + " has rank " + rank);
+            } else {
+                Main.log("✘ " + ign + " has rank " + rank);
+            }
 
         } catch (IOException e) {
-            log("Error fetching data for " + ign + ": " + e.getMessage());
+            Main.log("Error fetching data for " + ign + ": " + e.getMessage());
         }
-    }
-
-    public void waitTillFinished() {
-        if (executorService != null) {
-            try {
-                executorService.shutdown();
-                if (!executorService.awaitTermination(5, TimeUnit.MINUTES)) {
-                    executorService.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                log("Waiting interrupted: " + e.getMessage());
-            }
-        }
-    }
-
-    private void log(String message) {
-        SwingUtilities.invokeLater(() -> {
-            consoleArea.append(message + "\n");
-            consoleArea.setCaretPosition(consoleArea.getDocument().getLength());
-        });
     }
 
     public enum Rank {
