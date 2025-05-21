@@ -12,13 +12,14 @@ public class Main {
 
     private final DefaultListModel<CapeType> desiredModel = new DefaultListModel<>();
     private final DefaultListModel<CapeType> blockedModel = new DefaultListModel<>();
-
     private boolean isDarkMode = true;
+
+    private final List<String> scrapedIGNs = new ArrayList<>();
 
     public Main() {
         JFrame frame = new JFrame("capes.me Scraper");
         frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1000, 700);
+        frame.setSize(1100, 750);
         frame.setLocationRelativeTo(null);
 
         JComboBox<CapeType> capeSelector = new JComboBox<>(CapeType.values());
@@ -39,7 +40,66 @@ public class Main {
         consoleArea.setEditable(false);
         consoleArea.setFont(new Font("Consolas", Font.PLAIN, 13));
         JScrollPane consoleScroll = new JScrollPane(consoleArea);
-        consoleScroll.setPreferredSize(new Dimension(950, 200));
+        consoleScroll.setPreferredSize(new Dimension(1050, 200));
+
+        JComboBox<String> rankComboBox = new JComboBox<>();
+        rankComboBox.addItem("Don't Filter");
+        for (FilterByHypixelRank.Rank rank : FilterByHypixelRank.Rank.values()) {
+            rankComboBox.addItem(rank.name());
+        }
+
+        JButton startButton = new JButton("\ud83d\ude80 Start Scraping");
+
+        updateButtons(capeSelector, addToDesired, addToBlocked);
+
+        startButton.addActionListener(e -> {
+            if (desiredModel.isEmpty()) {
+                JOptionPane.showMessageDialog(frame, "Please select at least one desired cape.", "Warning", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+
+            startButton.setEnabled(false);
+            scrapedIGNs.clear();
+            consoleArea.setText("");
+
+            Set<CapeType> desiredSet = toSet(desiredModel);
+            Set<CapeType> blockedSet = blockedModel.isEmpty() ? EnumSet.noneOf(CapeType.class) : toSet(blockedModel);
+
+            FilterByCapes filterByCapes = new FilterByCapes(desiredSet, blockedSet, consoleArea);
+            FilterByHypixelRank filterByHypixelRank = new FilterByHypixelRank(consoleArea);
+
+            new Thread(() -> {
+                logToConsole(consoleArea, "Starting cape filtering...");
+                List<String> ignsFromCapes = filterByCapes.startScraping();
+
+                if (ignsFromCapes.isEmpty()) {
+                    logToConsole(consoleArea, "No players found from cape filtering, aborting further steps.");
+                    SwingUtilities.invokeLater(() -> startButton.setEnabled(true));
+                    return;
+                }
+                scrapedIGNs.addAll(ignsFromCapes);
+
+                String selectedRank = (String) rankComboBox.getSelectedItem();
+                if (selectedRank != null && !"Don't Filter".equals(selectedRank)) {
+                    logToConsole(consoleArea, "\n--- Starting Hypixel Rank filtering ---\n");
+                    filterByHypixelRank.startFiltering(scrapedIGNs, selectedRank);
+                    filterByHypixelRank.waitTillFinished();
+                } else {
+                    logToConsole(consoleArea, "Skipped Hypixel Rank filtering.");
+                }
+
+                logToConsole(consoleArea, "\nAll steps complete.");
+
+                SwingUtilities.invokeLater(() -> {
+                    desiredModel.clear();
+                    blockedModel.clear();
+                    rankComboBox.setSelectedIndex(0);
+                    filterOutRest.setSelected(false);
+                    startButton.setEnabled(true);
+                });
+
+            }).start();
+        });
 
         addToDesired.addActionListener(e -> {
             CapeType selected = (CapeType) capeSelector.getSelectedItem();
@@ -62,18 +122,8 @@ public class Main {
         filterOutRest.addActionListener(e -> updateAutoFilteredCapes());
         capeSelector.addActionListener(e -> updateButtons(capeSelector, addToDesired, addToBlocked));
 
-        JButton startButton = new JButton("🚀 Start Scraping");
-        startButton.addActionListener(e -> {
-            if (desiredModel.isEmpty()) {
-                JOptionPane.showMessageDialog(frame, "Please select at least one desired cape.", "Warning", JOptionPane.WARNING_MESSAGE);
-                return;
-            }
-            Set<CapeType> desiredSet = toSet(desiredModel);
-            Set<CapeType> blockedSet = blockedModel.isEmpty() ? EnumSet.noneOf(CapeType.class) : toSet(blockedModel);
-            new Thread(() -> new ListCapes(desiredSet, blockedSet, consoleArea)).start();
-        });
-
-        JToggleButton themeToggle = new JToggleButton("🌓 Theme");
+        JToggleButton themeToggle = new JToggleButton("\ud83c\udf11 Theme");
+        themeToggle.setSelected(true);
         themeToggle.addActionListener(e -> {
             isDarkMode = !isDarkMode;
             try {
@@ -98,16 +148,26 @@ public class Main {
 
         JPanel desiredPanel = new JPanel(new BorderLayout());
         desiredPanel.setBorder(BorderFactory.createTitledBorder("✅ Desired Capes"));
-        desiredPanel.add(desiredScroll, BorderLayout.CENTER);
+        desiredPanel.add(new JScrollPane(new JList<>(desiredModel)), BorderLayout.CENTER);
 
         JPanel blockedPanel = new JPanel(new BorderLayout());
         blockedPanel.setBorder(BorderFactory.createTitledBorder("❌ Blocked Capes"));
-        blockedPanel.add(blockedScroll, BorderLayout.CENTER);
+        blockedPanel.add(new JScrollPane(new JList<>(blockedModel)), BorderLayout.CENTER);
 
         JPanel listPanel = new JPanel(new GridLayout(1, 3, 10, 10));
         listPanel.add(selectorPanel);
         listPanel.add(desiredPanel);
         listPanel.add(blockedPanel);
+
+        JPanel rankFilterPanel = new JPanel();
+        rankFilterPanel.setBorder(BorderFactory.createTitledBorder("Hypixel Rank Filter (optional)"));
+        rankFilterPanel.setLayout(new FlowLayout(FlowLayout.LEFT));
+        rankFilterPanel.add(new JLabel("Select Rank:"));
+        rankFilterPanel.add(rankComboBox);
+
+        JPanel topPanel = new JPanel(new BorderLayout());
+        topPanel.add(listPanel, BorderLayout.CENTER);
+        topPanel.add(rankFilterPanel, BorderLayout.EAST);
 
         JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         controlPanel.add(startButton);
@@ -115,7 +175,7 @@ public class Main {
 
         JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
         mainPanel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-        mainPanel.add(listPanel, BorderLayout.CENTER);
+        mainPanel.add(topPanel, BorderLayout.CENTER);
         mainPanel.add(controlPanel, BorderLayout.NORTH);
         mainPanel.add(consoleScroll, BorderLayout.SOUTH);
 
@@ -148,6 +208,13 @@ public class Main {
 
     private Set<CapeType> toSet(DefaultListModel<CapeType> model) {
         return EnumSet.copyOf(Collections.list(model.elements()));
+    }
+
+    private static void logToConsole(JTextArea console, String message) {
+        SwingUtilities.invokeLater(() -> {
+            console.append(message + "\n");
+            console.setCaretPosition(console.getDocument().getLength());
+        });
     }
 
     public static void main(String[] args) {

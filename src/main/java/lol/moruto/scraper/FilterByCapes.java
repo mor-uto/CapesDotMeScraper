@@ -9,14 +9,26 @@ import javax.swing.*;
 import java.io.BufferedWriter;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public class ListCapes {
+public class FilterByCapes {
     private final JTextArea consoleArea;
+    private final Set<CapeType> desiredCapes;
+    private final Set<CapeType> noCapes;
 
-    public ListCapes(Set<CapeType> desiredCapes, Set<CapeType> noCapes, JTextArea consoleArea) {
+    private final Set<String> loggedIGNs = new HashSet<>();
+
+    public FilterByCapes(Set<CapeType> desiredCapes, Set<CapeType> noCapes, JTextArea consoleArea) {
+        this.desiredCapes = desiredCapes;
+        this.noCapes = noCapes;
         this.consoleArea = consoleArea;
+    }
+
+    public List<String> startScraping() {
         String baseUrl = "https://capes.me/capes";
 
         Map<String, String> queryParams = new LinkedHashMap<>();
@@ -28,7 +40,6 @@ public class ListCapes {
         String currentUrl = baseUrl + "?" + toQueryString(queryParams);
 
         logToConsole("Starting URL: " + currentUrl);
-        Set<String> loggedIGNs = new HashSet<>();
 
         try (BufferedWriter writer = new BufferedWriter(new FileWriter("results.txt"))) {
             while (currentUrl != null) {
@@ -38,7 +49,9 @@ public class ListCapes {
                     Document doc = Jsoup.connect(currentUrl).userAgent("Mozilla/5.0").timeout(10000).get();
                     Elements users = doc.select("div.full-user");
 
-                    if (users.isEmpty()) logToConsole("No users found on this page.");
+                    if (users.isEmpty()) {
+                        logToConsole("No users found on this page.");
+                    }
 
                     for (Element user : users) {
                         String ign = user.select("h3.name > div").text().trim();
@@ -75,10 +88,13 @@ public class ListCapes {
                         if (pageParam != null) {
                             queryParams.put("page", pageParam);
                             currentUrl = baseUrl + "?" + toQueryString(queryParams);
-                        } else currentUrl = null;
-
+                        } else {
+                            currentUrl = null;
+                        }
                         logToConsole("Moving to next page: " + currentUrl);
-                    } else currentUrl = null;
+                    } else {
+                        currentUrl = null;
+                    }
 
                     Thread.sleep(500);
                 } catch (Exception e) {
@@ -92,11 +108,20 @@ public class ListCapes {
         } catch (IOException e) {
             logToConsole("Could not write to file: " + e.getMessage());
         }
+
+        return new ArrayList<>(loggedIGNs);
     }
 
     private String toQueryString(Map<String, String> params) {
         return params.entrySet().stream()
-                .map(e -> e.getKey() + "=" + e.getValue())
+                .map(e -> {
+                    try {
+                        return e.getKey() + "=" + URLEncoder.encode(e.getValue(), "UTF-8");
+                    } catch (UnsupportedEncodingException ex) {
+                        ex.printStackTrace();
+                        return e.getKey() + "=" + e.getValue();
+                    }
+                })
                 .collect(Collectors.joining("&"));
     }
 
