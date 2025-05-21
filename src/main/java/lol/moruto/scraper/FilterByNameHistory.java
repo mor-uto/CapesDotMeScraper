@@ -1,77 +1,75 @@
 package lol.moruto.scraper;
 
-import io.github.bonigarcia.wdm.WebDriverManager;
-import org.openqa.selenium.By;
-import org.openqa.selenium.WebDriver;
-import org.openqa.selenium.WebElement;
-import org.openqa.selenium.chrome.ChromeDriver;
-import org.openqa.selenium.chrome.ChromeOptions;
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+import org.jsoup.nodes.Element;
+import org.jsoup.select.Elements;
 
+import java.io.IOException;
 import java.util.List;
 
 public class FilterByNameHistory {
 
     public void startProcessing(List<String> igns) {
         new Thread(() -> {
-            WebDriverManager.chromedriver().setup();
+            for (String ign : igns) {
+                if (ign.trim().isEmpty()) continue;
+                processIgn(ign.trim());
 
-            ChromeOptions options = new ChromeOptions();
-            options.setBinary("C:\\Program Files\\BraveSoftware\\Brave-Browser\\Application\\brave.exe");
-            options.addArguments("--headless=new");
-            options.addArguments("--no-sandbox");
-            options.addArguments("--disable-dev-shm-usage");
-
-            WebDriver driver = new ChromeDriver(options);
-
-            try {
-                for (String ign : igns) {
-                    if (ign.trim().isEmpty()) continue;
-                    processIgn(driver, ign.trim());
+                try {
                     Thread.sleep(1000);
+                } catch (InterruptedException e) {
+                    Main.log("Interrupted: " + e.getMessage());
+                    Thread.currentThread().interrupt();
+                    break;
                 }
-            } catch (InterruptedException e) {
-                Main.log("Interrupted: " + e.getMessage());
-                Thread.currentThread().interrupt();
-            } finally {
-                driver.quit();
-                Main.log("Finished processing all IGNs.");
             }
+            Main.log("Finished processing all IGNs.");
         }).start();
     }
 
-    private void processIgn(WebDriver driver, String ign) {
+    private void processIgn(String ign) {
         try {
             Main.log("Searching NameMC for IGN: " + ign);
-            driver.get("https://namemc.com/profile/" + ign);
-            Thread.sleep(3000);
+            String url = "https://namemc.com/profile/" + ign;
+            Document doc = Jsoup.connect(url)
+                    .userAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36")
+                    .timeout(8000)
+                    .get();
 
-            Main.log("Loaded: " + driver.getCurrentUrl());
+            Main.log("Loaded: " + url);
 
-            WebElement historyCard = driver.findElement(By.xpath("//h2[text()='Name History']/following-sibling::div"));
-            List<WebElement> nameRows = historyCard.findElements(By.cssSelector(".row"));
+            Element historySection = doc.selectFirst("h2:contains(Name History) + div");
+            if (historySection == null) {
+                Main.log(ign + ": No name history section found.");
+                return;
+            }
 
+            Elements nameRows = historySection.select(".row");
             if (nameRows.isEmpty()) {
-                Main.log(ign + ": No name history found.");
+                Main.log(ign + ": No name history entries found.");
                 return;
             }
 
             Main.log(ign + " Name history:");
-            for (WebElement row : nameRows) {
+            for (Element row : nameRows) {
                 String name = "Unknown";
                 String date = "";
 
-                try {
-                    name = row.findElement(By.cssSelector("div.col-12.col-md-6 span")).getText().trim();
-                } catch (Exception ignored) {}
+                Element nameSpan = row.selectFirst("div.col-12.col-md-6 span");
+                if (nameSpan != null) {
+                    name = nameSpan.text().trim();
+                }
 
-                try {
-                    date = row.findElement(By.cssSelector("div.text-right.text-muted")).getText().trim();
-                } catch (Exception ignored) {}
+                Element dateDiv = row.selectFirst("div.text-right.text-muted");
+                if (dateDiv != null) {
+                    date = dateDiv.text().trim();
+                }
 
                 Main.log("- " + name + (date.isEmpty() ? "" : " (changed on " + date + ")"));
             }
-        } catch (Exception e) {
-            Main.log(ign + " Failed: " + e.getMessage());
+        } catch (IOException e) {
+            Main.log(ign + " Failed to load page: " + e.getMessage());
         }
     }
 }
