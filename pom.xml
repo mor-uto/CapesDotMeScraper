@@ -13,38 +13,21 @@
     </properties>
 
     <dependencies>
-        <!-- Jsoup for other scraping (still included) -->
         <dependency>
             <groupId>org.jsoup</groupId>
             <artifactId>jsoup</artifactId>
             <version>1.20.1</version>
         </dependency>
 
-        <!-- FlatLaf for GUI -->
         <dependency>
             <groupId>com.formdev</groupId>
             <artifactId>flatlaf</artifactId>
             <version>3.3</version>
         </dependency>
-
-        <!-- Selenium with all core drivers (Chrome, etc.) -->
-        <dependency>
-            <groupId>org.seleniumhq.selenium</groupId>
-            <artifactId>selenium-java</artifactId>
-            <version>4.20.0</version>
-        </dependency>
-
-        <!-- WebDriverManager to auto-download drivers -->
-        <dependency>
-            <groupId>io.github.bonigarcia</groupId>
-            <artifactId>webdrivermanager</artifactId>
-            <version>5.8.0</version>
-        </dependency>
     </dependencies>
 
     <build>
         <plugins>
-            <!-- Shade plugin for fat JAR -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
