@@ -1,148 +1,97 @@
 package lol.moruto.scraper;
 
-import com.formdev.flatlaf.FlatDarkLaf;
-import com.formdev.flatlaf.FlatLightLaf;
+import com.formdev.flatlaf.*;
+import lol.moruto.scraper.filter.*;
+import lol.moruto.scraper.filter.impl.*;
 
 import javax.swing.*;
-import javax.swing.border.TitledBorder;
 import java.awt.*;
-import java.io.BufferedWriter;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Enumeration;
-import java.util.EnumSet;
+import java.io.*;
+import java.util.*;
 import java.util.List;
 
 public class Main {
-
-    private final DefaultListModel<CapeType> desiredModel = new DefaultListModel<>();
-    private final DefaultListModel<CapeType> blockedModel = new DefaultListModel<>();
-    private final List<String> scrapedIGNs = new ArrayList<>();
-    private boolean isDarkMode = true;
-
+    private final DefaultListModel<CapeType> desiredModel = new DefaultListModel<>(), blockedModel = new DefaultListModel<>();
+    private final java.util.List<String> scrapedIGNs = new ArrayList<>();
+    private boolean darkMode = true;
     static JTextArea consoleArea = new JTextArea();
 
     public Main() {
-        JFrame frame = new JFrame("capes.me Scraper");
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.setSize(1100, 750);
-        frame.setLocationRelativeTo(null);
+        JFrame f = new JFrame("capes.me Scraper");
+        f.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+        f.setSize(1100, 750);
+        f.setLocationRelativeTo(null);
 
-        JComboBox<CapeType> capeSelector = new JComboBox<>(CapeType.values());
-        JButton addToDesired = new JButton("➕ Desired");
-        JButton addToBlocked = new JButton("➖ Block");
-        JCheckBox filterOutRest = new JCheckBox("Filter Out All Other Capes");
+        JComboBox<CapeType> capeSel = new JComboBox<>(CapeType.values());
+        JButton addDesired = new JButton("➕ Desired"), addBlocked = new JButton("➖ Block"), start = new JButton("🚀 Start Scraping");
+        JCheckBox filterRest = new JCheckBox("Filter Out All Other Capes");
+        JComboBox<String> rankFilter = new JComboBox<>(java.util.stream.Stream.concat(java.util.stream.Stream.of("Don't Filter"), Arrays.stream(FilterByHypixelRank.Rank.values()).map(Enum::name)).toArray(String[]::new));
 
-        JList<CapeType> desiredList = new JList<>(desiredModel);
-        JList<CapeType> blockedList = new JList<>(blockedModel);
+        JList<CapeType> desiredList = new JList<>(desiredModel), blockedList = new JList<>(blockedModel);
 
         consoleArea.setEditable(false);
         consoleArea.setFont(new Font("Consolas", Font.PLAIN, 13));
-        consoleArea.setLineWrap(true);
-        consoleArea.setWrapStyleWord(true);
-        consoleArea.setMargin(new Insets(5, 5, 5, 5));
-
         JScrollPane consoleScroll = new JScrollPane(consoleArea);
         consoleScroll.setBorder(BorderFactory.createTitledBorder("Console Output"));
-        consoleScroll.setVerticalScrollBarPolicy(ScrollPaneConstants.VERTICAL_SCROLLBAR_ALWAYS);
         consoleScroll.setPreferredSize(new Dimension(1050, 200));
 
-        JComboBox<String> rankComboBox = new JComboBox<>();
-        rankComboBox.addItem("Don't Filter");
-        for (FilterByHypixelRank.Rank rank : FilterByHypixelRank.Rank.values()) {
-            rankComboBox.addItem(rank.name());
-        }
-
-        JButton startButton = new JButton("🚀 Start Scraping");
-
         Runnable updateButtons = () -> {
-            CapeType selected = (CapeType) capeSelector.getSelectedItem();
-            boolean inDesired = desiredModel.contains(selected);
-            boolean inBlocked = blockedModel.contains(selected);
-            addToDesired.setEnabled(!inDesired && !inBlocked);
-            addToBlocked.setEnabled(!inBlocked && !inDesired);
+            CapeType sel = (CapeType) capeSel.getSelectedItem();
+            addDesired.setEnabled(sel != null && !desiredModel.contains(sel) && !blockedModel.contains(sel));
+            addBlocked.setEnabled(sel != null && !blockedModel.contains(sel) && !desiredModel.contains(sel));
         };
-
-        Runnable updateAutoFilteredCapes = () -> {
+        Runnable autoFilter = () -> {
             blockedModel.clear();
-            for (CapeType cape : CapeType.values()) {
-                if (!desiredModel.contains(cape)) {
-                    blockedModel.addElement(cape);
-                }
-            }
+            for (CapeType c : CapeType.values()) if (!desiredModel.contains(c)) blockedModel.addElement(c);
         };
 
-        addToDesired.addActionListener(e -> {
-            CapeType selected = (CapeType) capeSelector.getSelectedItem();
-            if (selected != null && !desiredModel.contains(selected) && !blockedModel.contains(selected)) {
-                desiredModel.addElement(selected);
-                if (filterOutRest.isSelected()) {
-                    updateAutoFilteredCapes.run();
-                }
-            }
+        addDesired.addActionListener(e -> {
+            CapeType sel = (CapeType) capeSel.getSelectedItem();
+            if (sel != null && !desiredModel.contains(sel) && !blockedModel.contains(sel)) desiredModel.addElement(sel);
+            if (filterRest.isSelected()) autoFilter.run();
             updateButtons.run();
         });
-
-        addToBlocked.addActionListener(e -> {
-            CapeType selected = (CapeType) capeSelector.getSelectedItem();
-            if (selected != null && !blockedModel.contains(selected) && !desiredModel.contains(selected)) {
-                blockedModel.addElement(selected);
-                if (filterOutRest.isSelected()) {
-                    updateAutoFilteredCapes.run();
-                }
-            }
+        addBlocked.addActionListener(e -> {
+            CapeType sel = (CapeType) capeSel.getSelectedItem();
+            if (sel != null && !blockedModel.contains(sel) && !desiredModel.contains(sel)) blockedModel.addElement(sel);
+            if (filterRest.isSelected()) autoFilter.run();
             updateButtons.run();
         });
+        filterRest.addActionListener(e -> autoFilter.run());
+        capeSel.addActionListener(e -> updateButtons.run());
 
-        filterOutRest.addActionListener(e -> updateAutoFilteredCapes.run());
-        capeSelector.addActionListener(e -> updateButtons.run());
-
-        startButton.addActionListener(e -> {
+        start.addActionListener(e -> {
             if (desiredModel.isEmpty()) {
-                JOptionPane.showMessageDialog(frame, "Please select at least one desired cape.", "Warning", JOptionPane.WARNING_MESSAGE);
+                JOptionPane.showMessageDialog(f, "Please select at least one desired cape.", "Warning", JOptionPane.WARNING_MESSAGE);
                 return;
             }
 
-            startButton.setEnabled(false);
-            scrapedIGNs.clear();
+            start.setEnabled(false);
             consoleArea.setText("");
-
-            EnumSet<CapeType> desiredSet = EnumSet.copyOf(toEnumSet(desiredModel));
-            EnumSet<CapeType> blockedSet = blockedModel.isEmpty()
-                    ? EnumSet.noneOf(CapeType.class)
-                    : EnumSet.copyOf(toEnumSet(blockedModel));
-
-            FilterByCapes filterByCapes = new FilterByCapes(desiredSet, blockedSet);
-            FilterByHypixelRank filterByRank = new FilterByHypixelRank();
+            EnumSet<CapeType> desired = toEnumSet(desiredModel);
+            EnumSet<CapeType> blocked = blockedModel.isEmpty() ? EnumSet.noneOf(CapeType.class) : toEnumSet(blockedModel);
+            FilterContext ctx = new FilterContext();
+            ctx.put("desiredCapes", desired);
+            ctx.put("blockedCapes", blocked);
+            ctx.put("desiredRank", rankFilter.getSelectedItem());
 
             new Thread(() -> {
                 log("Starting cape filtering...");
-                List<String> igns = filterByCapes.startScraping();
+                List<String> results = new FilterManager().startFiltering(ctx);
 
-                if (igns.isEmpty()) {
-                    log("No players found from cape filtering, aborting further steps.");
-                    SwingUtilities.invokeLater(() -> startButton.setEnabled(true));
+                if (results.isEmpty()) {
+                    log("No players found after filtering.");
+                    SwingUtilities.invokeLater(() -> start.setEnabled(true));
                     return;
                 }
 
-                scrapedIGNs.addAll(igns);
-
-                String selectedRank = (String) rankComboBox.getSelectedItem();
-                if (!"Don't Filter".equals(selectedRank)) {
-                    filterByRank.startFiltering(scrapedIGNs, selectedRank);
-                } else {
-                    log("Skipped Hypixel Rank filtering.");
-                }
-
-                try (BufferedWriter writer = new BufferedWriter(new FileWriter("results.txt"))) {
-                    for (String ign : scrapedIGNs) {
-                        writer.write(ign);
-                        writer.newLine();
+                try (BufferedWriter w = new BufferedWriter(new FileWriter("results.txt"))) {
+                    for (String ign : results) {
+                        w.write(ign + "\n");
                     }
                     log("Results saved to results.txt");
-                } catch (IOException ioException) {
-                    log("Failed to write results.txt: " + ioException.getMessage());
+                } catch (IOException ex) {
+                    log("Failed to write results: " + ex.getMessage());
                 }
 
                 log("\nAll steps complete.");
@@ -150,92 +99,73 @@ public class Main {
                 SwingUtilities.invokeLater(() -> {
                     desiredModel.clear();
                     blockedModel.clear();
-                    rankComboBox.setSelectedIndex(0);
-                    filterOutRest.setSelected(false);
-                    startButton.setEnabled(true);
+                    rankFilter.setSelectedIndex(0);
+                    filterRest.setSelected(false);
+                    start.setEnabled(true);
                 });
             }).start();
         });
 
+
         JToggleButton themeToggle = new JToggleButton("🌑 Theme", true);
         themeToggle.addActionListener(e -> {
-            isDarkMode = !isDarkMode;
             try {
-                if (isDarkMode) {
-                    UIManager.setLookAndFeel(new FlatDarkLaf());
-                } else {
-                    UIManager.setLookAndFeel(new FlatLightLaf());
-                }
-                SwingUtilities.updateComponentTreeUI(frame);
-                updateConsoleColors();  // Update console colors on theme change
-            } catch (Exception ex) {
-                ex.printStackTrace();
-            }
+                darkMode = !darkMode;
+                UIManager.setLookAndFeel(darkMode ? new FlatDarkLaf() : new FlatLightLaf());
+                SwingUtilities.updateComponentTreeUI(f);
+            } catch (Exception ignored) {}
         });
 
-        JPanel content = new JPanel(new BorderLayout(10, 10));
-        content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
-
         JPanel listPanel = new JPanel(new GridLayout(1, 3, 10, 10));
-        listPanel.add(makeListPanel("Cape Selection", BoxLayout.Y_AXIS, capeSelector, addToDesired, addToBlocked, filterOutRest));
-        listPanel.add(makeListPanel("✅ Desired Capes", desiredList));
-        listPanel.add(makeListPanel("❌ Blocked Capes", blockedList));
+        listPanel.add(makePanel("Cape Selection", capeSel, addDesired, addBlocked, filterRest));
+        listPanel.add(makePanel("✅ Desired Capes", desiredList));
+        listPanel.add(makePanel("❌ Blocked Capes", blockedList));
+
+        JPanel rankPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        rankPanel.setBorder(BorderFactory.createTitledBorder("Hypixel Rank Filter (optional)"));
+        rankPanel.add(new JLabel("Select Rank:"));
+        rankPanel.add(rankFilter);
 
         JPanel topPanel = new JPanel(new BorderLayout());
         topPanel.add(listPanel, BorderLayout.CENTER);
-
-        JPanel rankPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        rankPanel.setBorder(new TitledBorder("Hypixel Rank Filter (optional)"));
-        rankPanel.add(new JLabel("Select Rank:"));
-        rankPanel.add(rankComboBox);
-
         topPanel.add(rankPanel, BorderLayout.EAST);
 
         JPanel actionPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        actionPanel.add(startButton);
+        actionPanel.add(start);
         actionPanel.add(themeToggle);
 
+        JPanel content = new JPanel(new BorderLayout(10, 10));
+        content.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
         content.add(topPanel, BorderLayout.CENTER);
         content.add(actionPanel, BorderLayout.NORTH);
         content.add(consoleScroll, BorderLayout.SOUTH);
 
-        frame.setContentPane(content);
+        f.setContentPane(content);
         updateButtons.run();
-
-        updateConsoleColors(); // Initial console colors for dark theme
-
-        frame.setVisible(true);
+        f.setVisible(true);
     }
 
-    private static void updateConsoleColors() {
-        consoleArea.setBackground(UIManager.getColor("TextArea.background"));
-        consoleArea.setForeground(UIManager.getColor("TextArea.foreground"));
-        consoleArea.setCaretColor(UIManager.getColor("TextArea.caretForeground"));
-    }
-
-    private static JPanel makeListPanel(String title, int layout, JComponent... components) {
-        JPanel panel = new JPanel();
-        panel.setLayout(new BoxLayout(panel, layout));
-        panel.setBorder(BorderFactory.createTitledBorder(title));
-        for (JComponent c : components) {
-            panel.add(c);
-            panel.add(Box.createVerticalStrut(5));
+    private static JPanel makePanel(String title, JComponent... comps) {
+        JPanel p = new JPanel();
+        p.setLayout(new BoxLayout(p, BoxLayout.Y_AXIS));
+        p.setBorder(BorderFactory.createTitledBorder(title));
+        for (JComponent c : comps) {
+            p.add(c);
+            p.add(Box.createVerticalStrut(5));
         }
-        return panel;
+        return p;
     }
 
-    private static JPanel makeListPanel(String title, JList<?> list) {
-        JPanel panel = new JPanel(new BorderLayout());
-        panel.setBorder(BorderFactory.createTitledBorder(title));
-        panel.add(new JScrollPane(list), BorderLayout.CENTER);
-        return panel;
+    private static JPanel makePanel(String title, JList<?> list) {
+        JPanel p = new JPanel(new BorderLayout());
+        p.setBorder(BorderFactory.createTitledBorder(title));
+        p.add(new JScrollPane(list), BorderLayout.CENTER);
+        return p;
     }
 
     private static EnumSet<CapeType> toEnumSet(DefaultListModel<CapeType> model) {
         EnumSet<CapeType> set = EnumSet.noneOf(CapeType.class);
-        for (Enumeration<CapeType> e = model.elements(); e.hasMoreElements();) {
-            set.add(e.nextElement());
-        }
+        for (int i = 0; i < model.size(); i++) set.add(model.get(i));
         return set;
     }
 
@@ -249,9 +179,7 @@ public class Main {
     public static void main(String[] args) {
         try {
             UIManager.setLookAndFeel(new FlatDarkLaf());
-        } catch (Exception e) {
-            System.err.println("Failed to initialize FlatLaf");
-        }
+        } catch (Exception ignored) {}
         SwingUtilities.invokeLater(Main::new);
     }
 }

@@ -1,5 +1,6 @@
-package lol.moruto.scraper;
+package lol.moruto.scraper.filter.impl;
 
+import lol.moruto.scraper.Main;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -9,7 +10,6 @@ import java.io.IOException;
 import java.util.List;
 
 public class FilterByNameHistory {
-
     public void startProcessing(List<String> igns) {
         new Thread(() -> {
             for (String ign : igns) {
