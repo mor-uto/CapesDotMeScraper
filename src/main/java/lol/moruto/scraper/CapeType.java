@@ -1,5 +1,8 @@
 package lol.moruto.scraper;
 
+import java.util.HashMap;
+import java.util.Map;
+
 public enum CapeType {
     MINECON_2011("Minecon2011", "2011", 7, "http://textures.minecraft.net/texture/953cac8b779fe41383e675ee2b86071a71658f2180f56fbce8aa315ea70e2ed6"),
     MINECON_2012("Minecon2012", "2012", 6, "http://textures.minecraft.net/texture/a2e8d97ec79100e90a75d369d1b3ba81273c4f82bc1b737e934eed4a854be1b6"),
@@ -45,14 +48,10 @@ public enum CapeType {
 
     private final String name;
     private final String code;
-    private final int level;
-    private final String url;
 
     CapeType(String name, String code, int level, String url) {
         this.name = name;
         this.code = code;
-        this.level = level;
-        this.url = url;
     }
 
     public String getName() {
@@ -63,11 +62,16 @@ public enum CapeType {
         return code;
     }
 
-    public int getLevel() {
-        return level;
+    private static final Map<String, CapeType> CODE_LOOKUP = new HashMap<>();
+
+    static {
+        for (CapeType type : CapeType.values()) {
+            CODE_LOOKUP.put(type.getCode().toLowerCase(), type);
+        }
     }
 
-    public String getUrl() {
-        return url;
+    public static CapeType fromCode(String code) {
+        return CODE_LOOKUP.get(code.toLowerCase());
     }
+
 }

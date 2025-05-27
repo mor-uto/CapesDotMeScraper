@@ -6,10 +6,10 @@ A powerful desktop application for scraping Minecraft player usernames with spec
 
 - ✅ Select desired and blocked capes.
 - ❌ Automatically filter out non-selected capes.
-- 🧑‍💼 filter users by Hypixel rank (VIP, MVP++, etc).
+- 🧑‍💼 Filter users by Hypixel rank (VIP, MVP++, etc).
 - 🧾 Real-time logging to an in-app console.
-- 🎨 Dark/light theme toggle with.
-- ⚡ Fast scraping!.
+- 🎨 Dark/light theme toggle.
+- ⚡ Fast scraping!
 
 ## 🚀 Getting Started
 
@@ -19,4 +19,27 @@ A powerful desktop application for scraping Minecraft player usernames with spec
 
 ### Running the App
 
-- Download the latest version from the releases and double click it!
+- Download the latest version from the releases and double-click it!
+
+<details>
+<summary>⚙️ Headless Mode (Command-Line)</summary>
+
+Run the scraper without a GUI using command-line arguments:
+
+```bash
+java -jar scraper.jar --headless [options]
+```
+
+Available Arguments:
+
+`--desiredCapes - Comma-separated list of cape codes to include (e.g. 2011,Cobalt, etc)`
+
+` --blockedCapes -Comma-separated list of cape codes to exclude or EXCLUDEDESIRED to block all except desired`
+
+`--hypixelRank -Hypixel rank to filter by (e.g. MVP++, VIP, Default)`
+
+Example:
+```bash
+java -jar capes-scraper.jar --headless --desiredCapes Vanilla,Migrator --blockedCapes EXCLUDEDESIRED --hypixelRank MVP++
+```
+</details>

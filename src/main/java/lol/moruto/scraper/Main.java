@@ -1,82 +1,77 @@
 package lol.moruto.scraper;
 
 import com.formdev.flatlaf.FlatDarkLaf;
+import lol.moruto.scraper.filter.Filter;
 import lol.moruto.scraper.filter.FilterContext;
-import lol.moruto.scraper.filter.FilterManager;
+import lol.moruto.scraper.filter.impl.FilterByCapes;
+import lol.moruto.scraper.filter.impl.FilterByHypixelRank;
 
-import java.util.Arrays;
-import java.util.EnumSet;
-import java.util.HashSet;
-import java.util.Set;
+import java.io.BufferedWriter;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.util.*;
 
 public class Main {
-    private static boolean headless = false;
+    private static final List<Filter> filters = Arrays.asList(
+            new FilterByCapes(),
+            new FilterByHypixelRank()
+    );
 
-    public static void main(String[] args) {
-        Set<String> desiredCapStrings = new HashSet<>();
-        Set<String> blockedCapStrings = new HashSet<>();
+    public static boolean headless = false;
 
-        for (int i = 0; i < args.length; i++) {
-            String arg = args[i];
-            if ("--headless".equalsIgnoreCase(arg)) {
-                headless = true;
-            } else if ("--desiredCapes".equalsIgnoreCase(arg) && i + 1 < args.length) {
-                desiredCapStrings.addAll(Arrays.asList(args[++i].split(",")));
-            } else if ("--blockedCapes".equalsIgnoreCase(arg) && i + 1 < args.length) {
-                blockedCapStrings.addAll(Arrays.asList(args[++i].split(",")));
-            }
-        }
+    public static void main(String[] args) throws Exception {
+        headless = Arrays.asList(args).contains("--headless");
+        FilterContext ctx = new FilterContext();
+
+        boolean outputJson = false;
 
         if (headless) {
-            System.out.println("Running in headless mode...");
-
-            EnumSet<CapeType> desired = EnumSet.noneOf(CapeType.class);
+            EnumSet<CapeType> desired = EnumSet.allOf(CapeType.class);
             EnumSet<CapeType> blocked = EnumSet.noneOf(CapeType.class);
+            String desiredRank = "Don't Filter";
 
-            for (String s : desiredCapStrings) {
-                try {
-                    desired.add(CapeType.valueOf(s.trim().toUpperCase()));
-                } catch (IllegalArgumentException e) {
-                    System.err.println("Unknown desired cape type: " + s);
-                }
-            }
-            if (desired.isEmpty()) desired = EnumSet.allOf(CapeType.class);
-
-            boolean excludeDesired = blockedCapStrings.stream()
-                    .anyMatch(s -> s.trim().equalsIgnoreCase("EXCLUDEDESIRED"));
-
-            if (excludeDesired) {
-                blocked = EnumSet.allOf(CapeType.class);
-                blocked.removeAll(desired);
-            } else {
-                for (String s : blockedCapStrings) {
-                    try {
-                        blocked.add(CapeType.valueOf(s.trim().toUpperCase()));
-                    } catch (IllegalArgumentException e) {
-                        System.err.println("Unknown blocked cape type: " + s);
-                    }
+            for (int i = 0; i < args.length; i++) {
+                switch (args[i]) {
+                    case "--desiredCapes" -> desired = parseCapes(args[++i]);
+                    case "--blockedCapes" -> blocked = parseCapes(args[++i]);
+                    case "--hypixelRank" -> desiredRank = args[++i];
+                    case "--outputJson" -> outputJson = true;
                 }
             }
 
-            FilterContext ctx = new FilterContext();
             ctx.put("desiredCapes", desired);
             ctx.put("blockedCapes", blocked);
-            ctx.put("desiredRank", "Don't Filter");
+            ctx.put("desiredRank", desiredRank);
 
-            System.out.println("Starting cape filtering...");
-            var results = new FilterManager().startFiltering(ctx);
-            if (results.isEmpty()) {
-                System.out.println("No players found after filtering.");
-            } else {
-                results.forEach(System.out::println);
-            }
+            List<String> results = startFiltering(ctx);
+            results.forEach(System.out::println);
+            writeResults(results, outputJson);
+
             System.out.println("Done.");
         } else {
-            try {
-                javax.swing.UIManager.setLookAndFeel(new FlatDarkLaf());
-            } catch (Exception ignored) {}
-            new Gui();
+            javax.swing.UIManager.setLookAndFeel(new FlatDarkLaf());
+            new Gui(ctx);
         }
+    }
+
+    public static List<String> startFiltering(FilterContext context) {
+        List<String> currentList = null;
+
+        for (Filter filter : filters) {
+            currentList = filter.filter(Objects.requireNonNullElse(currentList, Collections.emptyList()), context);
+            if (currentList.isEmpty()) break;
+        }
+
+        return currentList;
+    }
+
+    private static EnumSet<CapeType> parseCapes(String csv) {
+        EnumSet<CapeType> set = EnumSet.noneOf(CapeType.class);
+        for (String s : csv.split(",")) {
+            CapeType type = CapeType.fromCode(s.trim());
+            if (type != null) set.add(type);
+        }
+        return set;
     }
 
     public static void log(String message) {
@@ -84,6 +79,35 @@ public class Main {
             System.out.println(message);
         } else {
             Gui.log(message);
+        }
+    }
+
+    public static void writeResults(List<String> results, boolean isJson) {
+        if (isJson) {
+            try (BufferedWriter w = new BufferedWriter(new FileWriter("results.json"))) {
+                w.write("[\n");
+                for (int i = 0; i < results.size(); i++) {
+                    String ign = results.get(i);
+                    w.write("  " + "\"" + ign.chars().mapToObj(c -> switch(c) { case '"'->"\\\""; case '\\'->"\\\\"; case '\b'->"\\b"; case '\f'->"\\f"; case '\n'->"\\n"; case '\r'->"\\r"; case '\t'->"\\t"; default -> (c < 0x20 || c > 0x7E) ? String.format("\\u%04x", c) : String.valueOf((char)c); }).reduce("", String::concat) + "\"");
+                    if (i < results.size() - 1) {
+                        w.write(",");
+                    }
+                    w.write("\n");
+                }
+                w.write("]\n");
+                log("Results saved to results.json");
+            } catch (IOException ex) {
+                log("Failed to write JSON results: " + ex.getMessage());
+            }
+        } else {
+            try (BufferedWriter w = new BufferedWriter(new FileWriter("results.txt"))) {
+                for (String ign : results) {
+                    w.write(ign + "\n");
+                }
+                log("Results saved to results.txt");
+            } catch (IOException ex) {
+                log("Failed to write results: " + ex.getMessage());
+            }
         }
     }
 }
