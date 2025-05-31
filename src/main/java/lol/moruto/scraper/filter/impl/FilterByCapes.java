@@ -1,6 +1,7 @@
 package lol.moruto.scraper.filter.impl;
 
 import lol.moruto.scraper.CapeType;
+import lol.moruto.scraper.JSONParser;
 import lol.moruto.scraper.Main;
 import lol.moruto.scraper.filter.Filter;
 import lol.moruto.scraper.filter.FilterContext;
@@ -11,6 +12,7 @@ import org.jsoup.select.Elements;
 
 import java.io.IOException;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -19,6 +21,11 @@ public class FilterByCapes implements Filter {
     public List<String> filter(List<String> ignList, FilterContext ctx) {
         Set<CapeType> desired = ctx.get("desiredCapes", Set.class);
         Set<CapeType> blocked = ctx.get("blockedCapes", Set.class);
+        List<String> specificPlayers = ctx.get("specificPlayers", List.class);
+
+        if (specificPlayers != null && !specificPlayers.isEmpty()) {
+            return filterFromSpecificList(specificPlayers, desired, blocked);
+        }
 
         String baseUrl = "https://capes.me/capes";
         Map<String, String> params = new LinkedHashMap<>();
@@ -57,6 +64,7 @@ public class FilterByCapes implements Filter {
                         newCount++;
                     }
                 }
+
                 if (newCount == 0) {
                     Main.log("No new players found, stopping.");
                     break;
@@ -79,6 +87,53 @@ public class FilterByCapes implements Filter {
         }
 
         return new ArrayList<>(foundIGNs);
+    }
+
+    public List<String> filterFromSpecificList(List<String> players, Set<CapeType> filterCapes, Set<CapeType> blockedCapes) {
+        Set<String> desiredCapes = filterCapes.stream().map(c -> c.getCode().toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
+        Set<String> blockedCapesSet = blockedCapes.stream().map(c -> c.getCode().toLowerCase(Locale.ROOT)).collect(Collectors.toSet());
+
+        List<String> matchingPlayers = new ArrayList<>();
+
+        for (String player : players) {
+            try {
+                String apiUrl = "https://capes.me/api/user/" + URLEncoder.encode(player, StandardCharsets.UTF_8);
+                String json = Jsoup.connect(apiUrl)
+                        .ignoreContentType(true)
+                        .userAgent("Mozilla/5.0")
+                        .timeout(10000)
+                        .execute()
+                        .body();
+
+                Set<String> playerCapes = new HashSet<>();
+                String capesArray = json.substring(json.indexOf("\"capes\": [") + 9);
+                capesArray = capesArray.substring(0, capesArray.indexOf("]") + 1);
+
+                String[] capeObjects = capesArray.split("\\{");
+                for (String capeObj : capeObjects) {
+                    if (!capeObj.contains("type")) continue;
+
+                    String type = JSONParser.extractJsonStringValue(capeObj, "type");
+                    String removedStr = String.valueOf(JSONParser.extractJsonBooleanValue(capeObj, "removed"));
+
+                    boolean removed = removedStr.equals("true");
+                    if (!removed && type != null) {
+                        playerCapes.add(type.toLowerCase(Locale.ROOT));
+                    }
+                }
+
+                boolean hasDesired = playerCapes.stream().anyMatch(desiredCapes::contains);
+                boolean hasBlocked = playerCapes.stream().anyMatch(blockedCapesSet::contains);
+
+                if (hasDesired && !hasBlocked) {
+                    matchingPlayers.add(player);
+                }
+            } catch (Exception e) {
+                Main.log("Error fetching or parsing player " + player + ": " + e.getMessage());
+            }
+        }
+
+        return matchingPlayers;
     }
 
     private Set<String> toLowerSet(Set<CapeType> capes) {

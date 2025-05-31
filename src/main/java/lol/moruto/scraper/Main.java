@@ -5,6 +5,7 @@ import lol.moruto.scraper.filter.Filter;
 import lol.moruto.scraper.filter.FilterContext;
 import lol.moruto.scraper.filter.impl.FilterByCapes;
 import lol.moruto.scraper.filter.impl.FilterByHypixelRank;
+import lol.moruto.scraper.filter.impl.FilterByNameHistory;
 
 import java.io.BufferedWriter;
 import java.io.FileWriter;
@@ -14,7 +15,8 @@ import java.util.*;
 public class Main {
     private static final List<Filter> filters = Arrays.asList(
             new FilterByCapes(),
-            new FilterByHypixelRank()
+            new FilterByHypixelRank(),
+            new FilterByNameHistory()
     );
 
     public static boolean headless = false;
@@ -36,6 +38,7 @@ public class Main {
                     case "--blockedCapes" -> blocked = parseCapes(args[++i]);
                     case "--hypixelRank" -> desiredRank = args[++i];
                     case "--outputJson" -> outputJson = true;
+                    case "--ncs" -> ctx.put("ncs", args[++i]);
                 }
             }
 

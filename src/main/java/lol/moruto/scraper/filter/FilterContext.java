@@ -10,6 +10,10 @@ public class FilterContext {
         contextMap.put(key, value);
     }
 
+    public <T> void remove(String key) {
+        contextMap.remove(key);
+    }
+
     public <T> T get(String key, Class<T> clazz) {
         return clazz.cast(contextMap.get(key));
     }
